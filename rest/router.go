@@ -214,7 +214,7 @@ func (rest *SDUPRest) ListenAndServe() error {
 		}
 	})
 
-	caCert, err := ioutil.ReadFile("/home/caller/Development/Private/huemie/huemie-ca/CA/rootCACert.pem")
+	caCert, err := ioutil.ReadFile("~/Development/Private/huemie/huemie-ca/CA/rootCACert.pem")
 	if err != nil {
 		logging.Error(err.Error())
 		return err
@@ -234,7 +234,7 @@ func (rest *SDUPRest) ListenAndServe() error {
 		TLSConfig: tlsConfig,
 	}
 
-	if err := server.ListenAndServeTLS("/home/caller/Development/Private/huemie/huemie-ca/sdup-rest/dev.sdup-rest.crt", "/home/caller/Development/Private/huemie/huemie-ca/sdup-rest/dev.sdup-rest.key"); err != nil {
+	if err := server.ListenAndServeTLS("~/Development/Private/huemie/huemie-ca/sdup-rest/dev.sdup-rest.crt", "~/Development/Private/huemie/huemie-ca/sdup-rest/dev.sdup-rest.key"); err != nil {
 		logging.Error(err.Error())
 		return err
 	}
