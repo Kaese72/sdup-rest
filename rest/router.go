@@ -1,9 +1,12 @@
 package rest
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -211,7 +214,27 @@ func (rest *SDUPRest) ListenAndServe() error {
 		}
 	})
 
-	if err := http.ListenAndServe(fmt.Sprintf("%s:%d", rest.config.ListenAddress, rest.config.ListenPort), router); err != nil {
+	caCert, err := ioutil.ReadFile("/home/caller/Development/Private/huemie/huemie-ca/CA/rootCACert.pem")
+	if err != nil {
+		logging.Error(err.Error())
+		return err
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	tlsConfig := &tls.Config{
+		ClientCAs:  caCertPool,
+		ClientAuth: tls.VerifyClientCertIfGiven,
+	}
+
+	server := &http.Server{
+		Handler:   router,
+		Addr:      fmt.Sprintf("%s:%d", rest.config.ListenAddress, rest.config.ListenPort),
+		TLSConfig: tlsConfig,
+	}
+
+	if err := server.ListenAndServeTLS("/home/caller/Development/Private/huemie/huemie-ca/sdup-rest/dev.sdup-rest.crt", "/home/caller/Development/Private/huemie/huemie-ca/sdup-rest/dev.sdup-rest.key"); err != nil {
 		logging.Error(err.Error())
 		return err
 	}
@@ -221,17 +244,27 @@ func (rest *SDUPRest) ListenAndServe() error {
 func (rest *SDUPRest) authenticationMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, reader *http.Request) {
 		authHeaderVal := reader.Header.Get("authorization")
-		// FIXME improve bearer parsing. bearer should be case insensitive
-		if authHeaderVal == "" || !strings.HasPrefix(strings.ToLower(authHeaderVal), "bearer ") {
-			http.Error(writer, "You are not logged in", http.StatusForbidden)
-			return
+		certificateProvided := len(reader.TLS.PeerCertificates) > 0
+		if certificateProvided {
+			next.ServeHTTP(writer, reader)
+
+		} else if authHeaderVal != "" {
+			if !strings.HasPrefix(strings.ToLower(authHeaderVal), "bearer ") {
+				// FIXME improve bearer parsing. bearer should be case insensitive
+				http.Error(writer, "You are not logged in", http.StatusForbidden)
+				return
+			}
+			token := authHeaderVal[7:]
+			_, err := rest.authentication.ValidateToken(token)
+
+			if err != nil {
+				http.Error(writer, err.Error(), http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(writer, reader)
+
+		} else {
+			http.Error(writer, "No authentication method provided", http.StatusForbidden)
 		}
-		token := authHeaderVal[7:]
-		_, err := rest.authentication.ValidateToken(token)
-		if err != nil {
-			http.Error(writer, err.Error(), http.StatusForbidden)
-			return
-		}
-		next.ServeHTTP(writer, reader)
 	})
 }
