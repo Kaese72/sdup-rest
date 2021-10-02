@@ -2,14 +2,17 @@ package cache
 
 import (
 	"fmt"
+	"net/http"
 
-	"github.com/Kaese72/sdup-lib/sduptemplates"
+	"github.com/Kaese72/sdup-rest/faults"
 )
 
-type ErrDeviceNotFound struct {
-	ID sduptemplates.DeviceID
-}
+func ServeErrorContent(err error, writer http.ResponseWriter) {
+	switch err.(type) {
+	case faults.ErrEntityNotFound:
+		http.Error(writer, fmt.Sprintf("Not found: %s", err.Error()), http.StatusNotFound)
 
-func (err ErrDeviceNotFound) Error() string {
-	return fmt.Sprintf("Could not find Device with ID='%s'", err.ID)
+	default:
+		http.Error(writer, fmt.Sprintf("Unknown error: %s", err.Error()), http.StatusInternalServerError)
+	}
 }
